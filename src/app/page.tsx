@@ -1,69 +1,192 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useMemo, useState } from "react";
+import { useSettings } from "@/lib/SettingsContext";
+import { usePanchangaData } from "@/lib/usePanchangaData";
+import { groupFestivalsByDate } from "@/lib/festivals/engine";
+import { todayInTimezone } from "@/lib/format";
+import type { Festival, PanchangaDay } from "@/lib/panchanga/types";
+
+import { Header } from "@/components/Header";
+import { MonthNavigator } from "@/components/MonthNavigator";
+import { CalendarGrid } from "@/components/CalendarGrid";
+import { FilterChips, type FilterKey } from "@/components/FilterChips";
+import { Dashboard } from "@/components/Dashboard";
+import { UpcomingEvents } from "@/components/UpcomingEvents";
+import { YearView } from "@/components/YearView";
+import { DayDetailsPanel } from "@/components/DayDetailsPanel";
+import { FestivalDetails } from "@/components/FestivalDetails";
+import { LocationSelector } from "@/components/LocationSelector";
+import { SettingsPanel } from "@/components/SettingsPanel";
+import { SearchModal } from "@/components/SearchModal";
+import { AboutModal } from "@/components/AboutModal";
+import { CalculationDetails } from "@/components/CalculationDetails";
+import { Footer } from "@/components/Footer";
+
+function daysInYear(year: number): number {
+  return (year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)) ? 366 : 365;
+}
+
+export default function HomePage() {
+  const { location, settings } = useSettings();
+  const now = new Date();
+
+  const [view, setView] = useState<"month" | "year">("month");
+  const [displayYear, setDisplayYear] = useState(now.getFullYear());
+  const [displayMonth, setDisplayMonth] = useState(now.getMonth());
+  const [filter, setFilter] = useState<FilterKey>("all");
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedFestival, setSelectedFestival] = useState<Festival | null>(null);
+
+  const [locationOpen, setLocationOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+
+  const rangeStart = `${displayYear}-01-01`;
+  const rangeCount = daysInYear(displayYear) + 40;
+  const { data, loading, error } = usePanchangaData(rangeStart, rangeCount, location, settings);
+
+  const todayStr = todayInTimezone(location.timezone);
+
+  const daysByDate = useMemo(() => {
+    const map = new Map<string, PanchangaDay>();
+    data?.days.forEach((d) => map.set(d.date, d));
+    return map;
+  }, [data]);
+
+  const allFestivalsByDate = useMemo(() => groupFestivalsByDate(data?.festivals ?? []), [data]);
+
+  const filteredFestivalsByDate = useMemo(() => {
+    if (filter === "all") return allFestivalsByDate;
+    const map = new Map<string, Festival[]>();
+    for (const [date, list] of allFestivalsByDate) {
+      const filtered = list.filter((f) => f.type === filter);
+      if (filtered.length) map.set(date, filtered);
+    }
+    return map;
+  }, [allFestivalsByDate, filter]);
+
+  const upcomingFestivals = useMemo(() => {
+    return (data?.festivals ?? [])
+      .filter((f) => f.date >= todayStr && (filter === "all" || f.type === filter))
+      .slice(0, 8);
+  }, [data, todayStr, filter]);
+
+  const nextFast = useMemo(
+    () => (data?.festivals ?? []).find((f) => f.date >= todayStr && f.fastingRequired),
+    [data, todayStr]
+  );
+  const nextFestival = useMemo(
+    () => (data?.festivals ?? []).find((f) => f.date >= todayStr && !f.fastingRequired && f.type === "festival"),
+    [data, todayStr]
+  );
+
+  const todayPanchanga = daysByDate.get(todayStr);
+  const selectedDay = selectedDate ? daysByDate.get(selectedDate) : undefined;
+  const selectedDayFestivals = selectedDate ? allFestivalsByDate.get(selectedDate) ?? [] : [];
+  const selectedFestivalDay = selectedFestival ? daysByDate.get(selectedFestival.date) : undefined;
+
+  const goToMonth = (year: number, month: number) => {
+    if (month < 0) {
+      setDisplayYear(year - 1);
+      setDisplayMonth(11);
+    } else if (month > 11) {
+      setDisplayYear(year + 1);
+      setDisplayMonth(0);
+    } else {
+      setDisplayYear(year);
+      setDisplayMonth(month);
+    }
+  };
+
+  const jumpToDate = (dateStr: string) => {
+    const [y, m] = dateStr.split("-").map(Number);
+    setDisplayYear(y);
+    setDisplayMonth(m - 1);
+    setView("month");
+    setSelectedDate(dateStr);
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <>
+      <Header
+        view={view}
+        onChangeView={setView}
+        onOpenLocation={() => setLocationOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSearch={() => setSearchOpen(true)}
+      />
+
+      <main className="mx-auto w-full max-w-7xl flex-1 px-3 pb-8 pt-5 sm:px-6">
+        <div className="mb-5">
+          <Dashboard today={todayPanchanga} nextFast={nextFast} nextFestival={nextFestival} onSelectDate={jumpToDate} />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="mb-4">
+          <FilterChips active={filter} onChange={setFilter} />
         </div>
+
+        {error && (
+          <div className="glass-card mb-4 border-l-4 border-l-red-400 p-4 text-sm text-red-500">
+            Could not load Panchanga data: {error}
+          </div>
+        )}
+
+        {view === "month" ? (
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
+            <div className="flex flex-col gap-4">
+              <MonthNavigator
+                year={displayYear}
+                month={displayMonth}
+                onPrev={() => goToMonth(displayYear, displayMonth - 1)}
+                onNext={() => goToMonth(displayYear, displayMonth + 1)}
+                onToday={() => {
+                  setDisplayYear(now.getFullYear());
+                  setDisplayMonth(now.getMonth());
+                  setView("month");
+                }}
+              />
+              <div className={loading ? "opacity-60 transition-opacity" : "transition-opacity"}>
+                <CalendarGrid
+                  year={displayYear}
+                  month={displayMonth}
+                  todayStr={todayStr}
+                  selectedDate={selectedDate}
+                  daysByDate={daysByDate}
+                  festivalsByDate={filteredFestivalsByDate}
+                  onSelectDate={setSelectedDate}
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-4">
+              <UpcomingEvents festivals={upcomingFestivals} onSelect={setSelectedFestival} />
+              <CalculationDetails location={location} settings={settings} ayanamsaDegrees={todayPanchanga?.ayanamsaDegrees} />
+            </div>
+          </div>
+        ) : (
+          <YearView
+            year={displayYear}
+            daysByDate={daysByDate}
+            festivalsByDate={filteredFestivalsByDate}
+            todayStr={todayStr}
+            onSelectMonth={(m) => {
+              setDisplayMonth(m);
+              setView("month");
+            }}
+            onSelectDate={setSelectedDate}
+          />
+        )}
       </main>
-    </div>
+
+      <Footer onOpenSettings={() => setSettingsOpen(true)} onOpenAbout={() => setAboutOpen(true)} />
+
+      <DayDetailsPanel day={selectedDay ?? null} festivals={selectedDayFestivals} timezone={location.timezone} onClose={() => setSelectedDate(null)} />
+      <FestivalDetails festival={selectedFestival} day={selectedFestivalDay} onClose={() => setSelectedFestival(null)} />
+      <LocationSelector open={locationOpen} onClose={() => setLocationOpen(false)} />
+      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SearchModal open={searchOpen} onClose={() => setSearchOpen(false)} festivals={data?.festivals ?? []} onSelectDate={jumpToDate} />
+      <AboutModal open={aboutOpen} onClose={() => setAboutOpen(false)} />
+    </>
   );
 }

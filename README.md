@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Panchanga — Vedic Calendar
 
-## Getting Started
+A location-aware, astronomically calculated Hindu Panchanga and Vedic calendar. Tithi, Nakshatra, Yoga, Karana,
+sunrise/sunset, Ekadashi fasting + Parana times, and a growing set of Vaishnava/Gaudiya observances are all derived
+from real Sun/Moon ephemeris data (`astronomy-engine`) for the location and tradition you select — nothing is a
+hardcoded date list.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 (App Router) + TypeScript
+- Tailwind CSS v4
+- Framer Motion, Lucide icons
+- `astronomy-engine` for Sun/Moon positions (server-side only, in `src/app/api/panchanga/route.ts`)
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `npm run dev` — local dev server
+- `npm run build` — production build
+- `npm run start` — run the production build locally (after `build`)
+- `npm run lint` — ESLint
 
-## Learn More
+## Architecture
 
-To learn more about Next.js, take a look at the following resources:
+- `src/lib/astronomy.ts` — the only file that talks to the ephemeris (Sun/Moon longitudes, sunrise/sunset,
+  ayanamsa). Swappable for Swiss Ephemeris or another engine without touching anything downstream.
+- `src/lib/panchanga/calculator.ts` — turns raw astronomy into a day's Tithi/Nakshatra/Yoga/Karana/Masa.
+- `src/lib/festivals/` — the festival rule engine. `rules.ts` holds fixed-tithi observances; `ekadashi.ts` holds
+  the Ekadashi-specific engine (including the kshaya/vriddhi exception handling and Parana timing).
+- `src/app/api/panchanga/route.ts` — the one server endpoint the UI calls; all astronomy runs here, never in the
+  client bundle.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+No API keys or environment variables are required — everything is computed locally from the requested
+latitude/longitude/timezone.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deploying
 
-## Deploy on Vercel
+This is a standard Next.js app with one dynamic API route and no external services or secrets, so it deploys
+anywhere Next.js runs:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Vercel (recommended, zero config):**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npx vercel
+```
+
+or connect the repo at [vercel.com/new](https://vercel.com/new).
+
+**Any Node host (self-managed):**
+
+```bash
+npm install
+npm run build
+npm run start   # serves on $PORT, default 3000
+```
+
+**Docker:** use Vercel's official [Next.js standalone Dockerfile guide](https://nextjs.org/docs/app/building-your-application/deploying#docker-image) if containerizing.
+
+There is nothing environment-specific to configure — the app has no database, no auth, and no third-party API
+keys.
